@@ -63,7 +63,9 @@ class AlphaConnector:
                 "title": item.get("title"),
                 "summary": item.get("summary"),
                 "url": item.get("url"),
-                "overall_sentiment": item.get("overall_sentiment_label")
+                "overall_sentiment": item.get("overall_sentiment_label"),
+                # ** Added By Ali **
+                "overall_sentiment_score": item.get("overall_sentiment_score") # both label and score so later agents (NewsAnalysisAgent, SynthesisAgent, etc.) can use either
             })
         return pd.DataFrame(rows)
 
