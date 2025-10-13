@@ -25,7 +25,7 @@ def run(symbol, days_back, required_tags_csv):
 
 with gr.Blocks(title="Agentic Finance") as demo:
 
-    gr.Markdown("# 🧠 Agentic Finance — Interactive Tester")
+    gr.Markdown("# Agentic Finance — Interactive Tester")
     with gr.Row():
         symbol = gr.Textbox(label="Ticker", value="AAPL")
         days_back = gr.Slider(7, 120, value=30, step=1, label="Days Back")

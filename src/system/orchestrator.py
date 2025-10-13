@@ -11,11 +11,13 @@ from ..analysis.text import preprocess_news, add_tags_and_numbers, recent_topk, 
 from ..system.router import choose_agents
 from ..system.memory import append_memory
 from ..agents import NewsAnalysisAgent, MarketSignalsAgent, RiskAssessmentAgent, SynthesisAgent, CritiqueAgent, AgentResponse
+from pandas import DataFrame
+
 
 @dataclass
 class OrchestratorResult:
     plan: List[str]
-    evidence: Dict[str, Any]
+    evidence: Dict[str, DataFrame]
     agent_outputs: List[AgentResponse]
     final: AgentResponse
     critique: AgentResponse
@@ -74,8 +76,14 @@ def run_pipeline(symbol: str, start: str | None, end: str | None, required_tags:
         "final_confidence": synth.confidence,
     })
 
+    # evidence = {
+    #     "top_news": top_news.to_dict(orient="records"),
+    #     "prices_tail": prices.tail(5).to_dict(orient="records")
+    # }
+
+    # Avoiding object Object because Gradio DataFrame can take DataFrame directly
     evidence = {
-        "top_news": top_news.to_dict(orient="records"),
-        "prices_tail": prices.tail(5).to_dict(orient="records")
+    "top_news": top_news,                     # return the DataFrame itself
+    "prices_tail": prices.tail(5)             # return DataFrame
     }
     return OrchestratorResult(plan, evidence, outputs, synth, crit)
