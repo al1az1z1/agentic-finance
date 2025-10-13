@@ -1,0 +1,6 @@
+python-dotenv
+yfinance
+pandas
+requests
+gradio
+openai>=1.0.0
