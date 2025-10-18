@@ -110,13 +110,23 @@ class NewsAnalysisAgent(BaseAgent):
     def __init__(self, model: str = "gpt-4o-mini"):
         super().__init__("News Analysis Agent", model)
         self.system_prompt = """You are a financial news analyst specializing in sentiment analysis.
-Analyze news articles about companies and provide:
-1. Overall sentiment score (-1 to +1, where -1 is very negative, 0 is neutral, +1 is very positive)
-2. Key factors driving the sentiment
-3. Potential impact on stock price
 
-Be objective and consider both positive and negative aspects.
-Return response in JSON format with keys: sentiment_score, analysis, key_factors, confidence"""
+INSTRUCTIONS:
+1. Analyze news articles objectively
+2. Consider both positive and negative aspects
+3. Provide a sentiment score from -1 (very negative) to +1 (very positive)
+4. Identify key factors driving the sentiment
+5. Assess potential stock price impact
+
+EXAMPLE OUTPUT:
+{
+  "sentiment_score": 0.75,
+  "analysis": "Strong positive sentiment driven by earnings beat and product launch",
+  "key_factors": ["Earnings exceeded expectations", "New product well-received"],
+  "confidence": 0.85
+}
+
+Return ONLY valid JSON with keys: sentiment_score, analysis, key_factors, confidence"""
 
     def process(self, data: Dict[str, Any]) -> AgentResponse:
         ticker = data.get('ticker', 'AAPL')
@@ -224,18 +234,23 @@ class MarketSignalsAgent(BaseAgent):
     def __init__(self, model: str = "gpt-4o-mini"):
         super().__init__("Market Signals Agent", model)
         self.system_prompt = """You are a technical analyst specializing in market signals and price patterns.
-Analyze technical indicators and provide:
-1) Technical strength score (-1 to +1, where -1 is very bearish and +1 is very bullish)
-2) Key technical indicators assessment
-3) Support and resistance levels
-4) Trend analysis
 
-Return your answer strictly as JSON with these keys:
-- technical_score: float in [-1, 1]
-- analysis: 4–6 sentences of prose that INCLUDE the exact input numbers you used (price, MAs, RSI, volume & avg). Do NOT echo the raw dict; write a human-readable explanation with those figures.
-- key_factors: list of 3–6 short bullet phrases (strings) capturing the drivers of the score
-- confidence: float in [0, 1]
-Do not include any other keys. Do not wrap the JSON in code fences."""
+INSTRUCTIONS:
+1. Analyze technical indicators objectively
+2. Assess technical strength from -1 (very bearish) to +1 (very bullish)
+3. Identify support/resistance levels
+4. Evaluate trend direction and momentum
+5. Consider volume patterns
+
+EXAMPLE OUTPUT:
+{
+  "technical_score": 0.65,
+  "analysis": "Bullish technical setup with price above key moving averages",
+  "key_factors": ["Price above 50-day MA", "RSI indicates strength", "Volume confirming uptrend"],
+  "confidence": 0.75
+}
+
+Return ONLY valid JSON with keys: technical_score, analysis, key_factors, confidence"""
 
 
     def process(self, data: Dict[str, Any]) -> AgentResponse:
@@ -296,13 +311,23 @@ class RiskAssessmentAgent(BaseAgent):
     def __init__(self, model: str = "gpt-4o-mini"):
         super().__init__("Risk Assessment Agent", model)
         self.system_prompt = """You are a risk management analyst specializing in portfolio risk assessment.
-Analyze risk metrics and provide:
-1. Risk level score (0 to 1, where 0 is very low risk, 1 is very high risk)
-2. Key risk factors
-3. Portfolio diversification implications
-4. Risk-adjusted return assessment
 
-Return response in JSON format with keys: risk_score, analysis, key_factors, confidence"""
+INSTRUCTIONS:
+1. Analyze risk metrics objectively
+2. Provide risk level score from 0 (very low risk) to 1 (very high risk)
+3. Identify key risk factors
+4. Assess portfolio diversification implications
+5. Evaluate risk-adjusted returns
+
+EXAMPLE OUTPUT:
+{
+  "risk_score": 0.45,
+  "analysis": "Moderate risk profile with acceptable volatility and strong Sharpe ratio",
+  "key_factors": ["Beta of 1.15 indicates moderate volatility", "Strong Sharpe ratio", "Manageable drawdown"],
+  "confidence": 0.82
+}
+
+Return ONLY valid JSON with keys: risk_score, analysis, key_factors, confidence"""
 
     def process(self, data: Dict[str, Any]) -> AgentResponse:
         ticker = data.get('ticker', 'UNKNOWN')
@@ -366,14 +391,25 @@ class SynthesisAgent(BaseAgent):
     def __init__(self, model: str = "gpt-4o-mini"):
         super().__init__("Research Synthesis Agent", model)
         self.system_prompt = """You are a senior investment analyst who synthesizes multiple analyses into actionable recommendations.
-Given analyses from news, earnings, technical, and risk agents, provide:
-1. Overall investment recommendation (STRONG BUY, BUY, HOLD, SELL, STRONG SELL)
-2. Confidence level (0 to 1)
-3. Key reasoning
-4. Risk considerations
-5. Target price range (if applicable)
 
-Return response in JSON format with keys: recommendation, confidence, analysis, key_points, risks"""
+INSTRUCTIONS:
+1. Review all agent analyses objectively
+2. Weigh different factors appropriately
+3. Provide clear investment recommendation (STRONG BUY, BUY, HOLD, SELL, STRONG SELL)
+4. State confidence level (0 to 1)
+5. Summarize key reasoning
+6. Note important risks
+
+EXAMPLE OUTPUT:
+{
+  "recommendation": "BUY",
+  "confidence": 0.78,
+  "analysis": "Strong fundamentals and positive technical signals support a buy recommendation despite moderate risk",
+  "key_points": ["Earnings beat expectations", "Technical breakout", "Acceptable risk profile"],
+  "risks": ["Market volatility", "Sector headwinds"]
+}
+
+Return ONLY valid JSON with keys: recommendation, confidence, analysis, key_points, risks"""
 
     def process(self, agent_responses: List[AgentResponse]) -> AgentResponse:
         analyses_summary = "\n\n".join([
@@ -432,15 +468,25 @@ class CritiqueAgent(BaseAgent):
 
     def __init__(self, model: str = "gpt-4o-mini"):
         super().__init__("Critique & Validation Agent", model)
-        self.system_prompt = """You are critique analyst who reviews investment recommendations for biases, logical errors, and completeness.
-Review the synthesis and identify:
-1. Logical inconsistencies
-2. Potential biases
-3. Missing considerations
-4. Data quality issues
-5. Confidence adjustment recommendation
+        self.system_prompt = """You are a critique analyst who reviews investment recommendations for biases, logical errors, and completeness.
 
-Return response in JSON format with keys: quality_score, issues_found, suggestions, adjusted_confidence"""
+INSTRUCTIONS:
+1. Review the synthesis objectively
+2. Identify logical inconsistencies
+3. Detect potential biases
+4. Note missing considerations
+5. Assess data quality
+6. Recommend confidence adjustments
+
+EXAMPLE OUTPUT:
+{
+  "quality_score": 0.82,
+  "issues_found": ["Limited macroeconomic analysis"],
+  "suggestions": ["Consider Federal Reserve policy impact", "Add sector comparison"],
+  "adjusted_confidence": 0.75
+}
+
+Return ONLY valid JSON with keys: quality_score, issues_found, suggestions, adjusted_confidence"""
 
     def process(self, synthesis_response: AgentResponse) -> AgentResponse:
         user_message = f"""Review this investment analysis for quality and completeness:
