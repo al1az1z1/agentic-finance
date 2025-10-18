@@ -11,7 +11,7 @@ from pandas import DataFrame
 from ..config.settings import SETTINGS
 from ..data_io.prices import fetch_prices
 from ..data_io.news import fetch_news
-from ..analysis.signals import fetch_indicator
+from ..data_io.indicators import fetch_indicator
 from ..analysis.text import preprocess_news, add_tags_and_numbers, recent_topk
 from ..system.router import choose_agents
 from ..system.memory import append_memory
@@ -119,7 +119,7 @@ def run_pipeline(symbol: str, start: str | None, end: str | None,
         technicals = {
             "current_price": current_price,
             "rsi": (float(rsi["RSI"].iloc[-1]) if not rsi.empty else None),
-            # Map to teammate’s keys; if you don’t have these, leave None.
+            # Map to teammate’s keys; if we don’t have these, leave None.
             "ma_50": (float(sma50["SMA"].iloc[-1]) if not sma50.empty else (float(sma20["SMA"].iloc[-1]) if not sma20.empty else None)),
             "ma_200": (float(sma200["SMA"].iloc[-1]) if not sma200.empty else None),
             "macd": None,                # not computed here

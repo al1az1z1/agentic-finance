@@ -1,67 +1,19 @@
+# === Second approach
+
 from __future__ import annotations
 import os, json
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List
 
-#region added for Weird ScoreScakes 
-import re
-
-def strip_code_fences(s: str) -> str:
-    if not isinstance(s, str):
-        return s
-    # remove leading/trailing ``` blocks
-    return re.sub(r"^```(?:json)?\s*|\s*```$", "", s.strip(), flags=re.IGNORECASE)
-
-def to_float(x, default=0.0):
-    try:
-        if isinstance(x, str):
-            x = x.strip()
-            # common words to numeric
-            if x.lower() in ("high", "strong", "bullish", "overbought"): 
-                return 0.8
-            if x.lower() in ("medium", "moderate", "neutral"):
-                return 0.5
-            if x.lower() in ("low", "weak", "bearish", "oversold"):
-                return 0.2
-        v = float(x)
-        return v
-    except Exception:
-        return default
-
-def clamp(x: float, lo: float, hi: float) -> float:
-    return max(lo, min(hi, x))
-
-def normalize_score(v: float) -> float:
-    """
-    Map various score ranges to [-1, 1] for agent 'score' fields.
-    Heuristics:
-      - If already in [-1,1], keep.
-      - If in [0,1], map to [-1,1] via (v-0.5)*2.
-      - If in [0,100], divide by 100 then map.
-      - Else, clamp.
-    """
-    if -1.0 <= v <= 1.0:
-        return v
-    if 0.0 <= v <= 1.0:
-        return (v - 0.5) * 2.0
-    if 1.0 < v <= 100.0:
-        v01 = v / 100.0
-        return (v01 - 0.5) * 2.0
-    # weird values (e.g., 8.5), assume 0-10
-    if 1.0 < v <= 10.0:
-        v01 = v / 10.0
-        return (v01 - 0.5) * 2.0
-    return clamp(v, -1.0, 1.0)
-
-def normalize_conf(v) -> float:
-    f = to_float(v, 0.7)
-    # map 0-100 to 0-1 if needed
-    if f > 1.0 and f <= 100.0:
-        f = f / 100.0
-    return clamp(f, 0.0, 1.0)
-#endregion added for Weird ScoreScakes 
-
+# Import shared helpers from analysis.text
+from .analysis.text import (
+    strip_code_fences,
+    to_float,
+    clamp,
+    normalize_score,
+    normalize_conf,
+)
 
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 if OPENAI_KEY:
@@ -86,23 +38,34 @@ class BaseAgent:
 
     def call_llm(self, system_prompt: str, user_message: str) -> str:
         if _client is None:  # mock
-            return json.dumps({"analysis": f"MOCK: {self.agent_name} processed.", "score": 0.0,
-                               "key_factors": ["mock"], "confidence": 0.7})
+            return json.dumps({
+                "analysis": f"MOCK: {self.agent_name} processed.",
+                "score": 0.0,
+                "key_factors": ["mock"],
+                "confidence": 0.7
+            })
         try:
             resp = _client.chat.completions.create(
                 model=self.model,
-                messages=[{"role":"system","content":system_prompt},
-                          {"role":"user","content":user_message}],
-                temperature=0.3, max_tokens=800
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message}
+                ],
+                temperature=0.3,
+                max_tokens=800
             )
             return resp.choices[0].message.content
         except Exception as e:
-            return json.dumps({"analysis": f"Error: {e}", "score": 0.0, "key_factors": ["error"], "confidence": 0.3})
+            return json.dumps({
+                "analysis": f"Error: {e}",
+                "score": 0.0,
+                "key_factors": ["error"],
+                "confidence": 0.3
+            })
 
-
-
-# ====== Sunitha's version without comments ======
-
+# -----------------------------
+# News
+# -----------------------------
 
 class NewsAnalysisAgent(BaseAgent):
     """Analyzes financial news sentiment and impact"""
@@ -167,6 +130,9 @@ Provide sentiment analysis and impact assessment."""
             timestamp=datetime.now().isoformat()
         )
 
+# -----------------------------
+# Technicals
+# -----------------------------
 
 class MarketSignalsAgent(BaseAgent):
     """Performs technical analysis on market data"""
@@ -191,7 +157,6 @@ EXAMPLE OUTPUT:
 }
 
 Return ONLY valid JSON with keys: technical_score, analysis, key_factors, confidence"""
-
 
     def process(self, data: Dict[str, Any]) -> AgentResponse:
         ticker = data.get('ticker', 'UNKNOWN')
@@ -239,7 +204,9 @@ Assess technical strength and price momentum. Provide only the JSON object descr
             timestamp=datetime.now().isoformat()
         )
 
-
+# -----------------------------
+# Risk
+# -----------------------------
 
 class RiskAssessmentAgent(BaseAgent):
     """Assesses investment risk and portfolio fit"""
@@ -291,15 +258,15 @@ Assess overall investment risk and portfolio implications."""
 
         try:
             result = json.loads(js)
-            # Keep her 0..1 semantics but normalize to 0..1 range & clamp
+            # Keep 0..1 semantics but normalize/clamp
             risk01 = to_float(result.get('risk_score', 0.5), 0.5)
-            if risk01 > 1.0 and risk01 <= 100.0:
+            if 1.0 < risk01 <= 100.0:
                 risk01 = risk01 / 100.0
-            elif risk01 > 1.0 and risk01 <= 10.0:
+            elif 1.0 < risk01 <= 10.0:
                 risk01 = risk01 / 10.0
             risk01 = clamp(risk01, 0.0, 1.0)
 
-            score = risk01  # (her design keeps risk as 0..1; no sign flip here)
+            score = risk01
             analysis = result.get('analysis', raw)
             key_factors = result.get('key_factors', [])
             confidence = normalize_conf(result.get('confidence', 0.8))
@@ -318,8 +285,9 @@ Assess overall investment risk and portfolio implications."""
             timestamp=datetime.now().isoformat()
         )
 
-
-
+# -----------------------------
+# Synthesis
+# -----------------------------
 
 class SynthesisAgent(BaseAgent):
     """Combines insights from all agents into final recommendation"""
@@ -369,7 +337,7 @@ Provide comprehensive investment recommendation with supporting reasoning."""
             result = json.loads(js)
             recommendation = str(result.get('recommendation', 'HOLD')).upper()
             analysis = result.get('analysis', raw)
-            key_factors = result.get('key_points', [])  # keep her field
+            key_factors = result.get('key_points', [])
             confidence = normalize_conf(result.get('confidence', 0.7))
 
             rec_to_score = {
@@ -380,7 +348,6 @@ Provide comprehensive investment recommendation with supporting reasoning."""
                 'STRONG SELL': -1.0
             }
             score = rec_to_score.get(recommendation, 0.0)
-
         except json.JSONDecodeError:
             score = 0.0
             analysis = raw
@@ -396,8 +363,9 @@ Provide comprehensive investment recommendation with supporting reasoning."""
             timestamp=datetime.now().isoformat()
         )
 
-
-
+# -----------------------------
+# Critique
+# -----------------------------
 
 class CritiqueAgent(BaseAgent):
     """Reviews and validates analysis quality"""
@@ -440,15 +408,17 @@ Identify any issues, biases, or missing elements."""
             result = json.loads(js)
             quality_score = to_float(result.get('quality_score', 0.7), 0.7)
             # normalize 0..10 or 0..100 to 0..1 (display-style)
-            if quality_score > 1.0 and quality_score <= 10.0:
+            if 1.0 < quality_score <= 10.0:
                 quality_score = quality_score / 10.0
-            elif quality_score > 10.0 and quality_score <= 100.0:
+            elif 10.0 < quality_score <= 100.0:
                 quality_score = quality_score / 100.0
             quality_score = clamp(quality_score, 0.0, 1.0)
 
             issues = result.get('issues_found', [])
             suggestions = result.get('suggestions', [])
-            adjusted_confidence = normalize_conf(result.get('adjusted_confidence', synthesis_response.confidence))
+            adjusted_confidence = normalize_conf(
+                result.get('adjusted_confidence', synthesis_response.confidence)
+            )
 
             analysis = f"Quality Score: {quality_score}\n"
             if issues:
@@ -457,7 +427,6 @@ Identify any issues, biases, or missing elements."""
                 analysis += f"Suggestions: {', '.join(suggestions)}"
 
             key_factors = issues if issues else ["No major issues found"]
-
         except json.JSONDecodeError:
             quality_score = 0.7
             analysis = raw
@@ -472,6 +441,3 @@ Identify any issues, biases, or missing elements."""
             key_factors=key_factors,
             timestamp=datetime.now().isoformat()
         )
-
-
-
