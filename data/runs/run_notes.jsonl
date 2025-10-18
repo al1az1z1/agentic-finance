@@ -1,3 +1,0 @@
-{"ticker": "AAPL", "lanes": ["news", "technical", "risk"], "issues": [], "final_confidence": 0.3}
-{"ticker": "AAPL", "lanes": ["news", "technical", "risk"], "issues": ["parse_fail"], "final_confidence": 0.6}
-{"ticker": "GOOG", "lanes": ["news", "technical", "risk"], "issues": ["parse_fail"], "final_confidence": 0.6}
