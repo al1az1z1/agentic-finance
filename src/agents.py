@@ -344,21 +344,7 @@ class MarketSignalsAgent(BaseAgent):
 
     def __init__(self, model: str = "gpt-4o-mini"):
         super().__init__("Market Signals Agent", model)
-        # 🔧 Revised prompt: stricter schema + no echoing raw dict
-#         self.system_prompt = """You are a technical analyst specializing in market signals and price patterns.
-# Analyze technical indicators and provide:
-# 1) Technical strength score (-1 to +1, where -1 is very bearish and +1 is very bullish)
-# 2) Key technical indicators assessment
-# 3) Support and resistance levels
-# 4) Trend analysis
-
-# Return your answer strictly as JSON with these keys:
-# - technical_score: float in [-1, 1]
-# - analysis: 4–6 sentences of prose. Do NOT echo or reprint the input dictionary; write a human-readable explanation instead.
-# - key_factors: list of 3–6 short bullet phrases (strings) capturing the drivers of the score
-# - confidence: float in [0, 1]
-
-# Do not include any other keys. Do not wrap the JSON in code fences."""
+        # Revised prompt: stricter schema + no echoing raw dict
         self.system_prompt = """You are a technical analyst specializing in market signals and price patterns.
 Analyze technical indicators and provide:
 1) Technical strength score (-1 to +1, where -1 is very bearish and +1 is very bullish)
@@ -368,11 +354,11 @@ Analyze technical indicators and provide:
 
 Return your answer strictly as JSON with these keys:
 - technical_score: float in [-1, 1]
-- analysis: 4–6 sentences of prose that INCLUDE the exact input numbers you used (price, MAs, RSI, volume & avg). Do NOT echo the raw dict; write a human-readable explanation with those figures.
+- analysis: 4–6 sentences of prose. Do NOT echo or reprint the input dictionary; write a human-readable explanation instead.
 - key_factors: list of 3–6 short bullet phrases (strings) capturing the drivers of the score
 - confidence: float in [0, 1]
-Do not include any other keys. Do not wrap the JSON in code fences."""
 
+Do not include any other keys. Do not wrap the JSON in code fences."""
 
     def process(self, data: Dict[str, Any]) -> AgentResponse:
         ticker = data.get('ticker', 'UNKNOWN')
