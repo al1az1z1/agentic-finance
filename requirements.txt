@@ -1,0 +1,7 @@
+pandas>=1.5
+numpy>=1.23
+requests>=2.31
+yfinance>=0.2.40
+gradio>=4.44
+python-dotenv>=1.0
+openai>=1.40
