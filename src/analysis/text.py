@@ -56,42 +56,16 @@ def add_tags_and_numbers(df: pd.DataFrame) -> pd.DataFrame:
     df["numbers"] = (df["title"] + " " + df["summary"]).apply(extract_numbers)
     return df
 
-
-# # sixth approach
-# fifth approach
 def recent_topk(df: pd.DataFrame, topk: int, days: int, required_tags: list[str] | None = None) -> pd.DataFrame:
-    if df.empty: return df
+    if df.empty: 
+        return df
     cutoff = pd.Timestamp(datetime.utcnow() - timedelta(days=days))
     f = df[df["published_at"] >= cutoff]
     if required_tags:
-        f = f[f["tags"].apply(lambda ts: any(t in ts for t in required_tags))]
-    f = f.sort_values("published_at", ascending=False).head(topk)
-    return f
+        f_tags = f[f["tags"].apply(lambda ts: any(t in ts for t in required_tags))]
+        f = f_tags if not f_tags.empty else f
+    return f.sort_values("published_at", ascending=False).head(topk)
 
-# # def recent_topk(df: pd.DataFrame, topk: int, days: int, required_tags: list[str] | None = None) -> pd.DataFrame:
-# #     if df.empty: 
-# #         return df
-# #     cutoff = pd.Timestamp(datetime.utcnow() - timedelta(days=days))
-# #     f = df[df["published_at"] >= cutoff]
-# #     if required_tags:
-# #         f_tags = f[f["tags"].apply(lambda ts: any(t in ts for t in required_tags))]
-# #         f = f_tags if not f_tags.empty else f
-# #     return f.sort_values("published_at", ascending=False).head(topk)
-# # # fifth approach
-# def recent_topk(df: pd.DataFrame, topk: int, days: int, required_tags: list[str] | None = None) -> pd.DataFrame:
-#     if df.empty:
-#         return df
-#     cutoff = pd.Timestamp.utcnow().tz_localize("UTC") - timedelta(days=days)
-#     f = df[df["published_at"] >= cutoff]  # NaT rows are excluded automatically
-
-#     if required_tags:
-#         f_tags = f[f["tags"].apply(lambda ts: any(t in ts for t in required_tags))]
-#         if not f_tags.empty:
-#             f = f_tags
-
-#     return f.sort_values("published_at", ascending=False).head(topk)
-
-# # sixth approach
 
 def summarize_rows(df: pd.DataFrame) -> list[str]:
     bullets = []

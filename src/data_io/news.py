@@ -19,9 +19,16 @@ def fetch_news(symbol: str) -> pd.DataFrame:
     data = r.json()
     if "feed" not in data:
         return pd.DataFrame()
-    # ====== FORTH APPROACH =====
+    
     rows = []
-    for item in data["feed"]:
+    for item in data.get("feed", []):
+        tickers = item.get("ticker_sentiment", []) or []
+        # keep only if our symbol is explicitly mentioned
+        keep = any(t.get("ticker", "").upper() == symbol.upper() and float(t.get("relevance_score", 0) or 0) >= 0.30
+                   for t in tickers)
+        if not keep:
+            continue
+
         rows.append({
             "published_at": item.get("time_published"),
             "source": item.get("source"),
@@ -30,23 +37,6 @@ def fetch_news(symbol: str) -> pd.DataFrame:
             "url": item.get("url"),
             "overall_sentiment": item.get("overall_sentiment_label")
         })
-    # rows = []
-    # for item in data.get("feed", []):
-    #     tickers = item.get("ticker_sentiment", []) or []
-    #     # keep only if our symbol is explicitly mentioned
-    #     keep = any(t.get("ticker", "").upper() == symbol.upper() and float(t.get("relevance_score", 0) or 0) >= 0.30
-    #                for t in tickers)
-    #     if not keep:
-    #         continue
-
-    #     rows.append({
-    #         "published_at": item.get("time_published"),
-    #         "source": item.get("source"),
-    #         "title": item.get("title"),
-    #         "summary": item.get("summary"),
-    #         "url": item.get("url"),
-    #         "overall_sentiment": item.get("overall_sentiment_label")
-    #     })
 
     # ====== Forth APPROACH =====
     df = pd.DataFrame(rows)
