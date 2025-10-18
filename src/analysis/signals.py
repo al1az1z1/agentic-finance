@@ -8,9 +8,7 @@ from ..config.settings import SETTINGS
 BASE = "https://www.alphavantage.co/query"
 KEYS = {"SMA": "Technical Analysis: SMA", "RSI": "Technical Analysis: RSI"}
 
-# -----------------------
 # Local computations
-# -----------------------
 def compute_sma(prices: pd.DataFrame, window: int) -> pd.Series:
     """Compute simple moving average on close prices."""
     if prices is None or prices.empty:
@@ -57,9 +55,7 @@ def _fallback_from_prices(symbol: str, indicator: str, time_period: int) -> pd.D
     df = df.sort_values("date", ascending=True).reset_index(drop=True)
     return df
 
-# -----------------------
 # Primary fetch with fallback
-# -----------------------
 def fetch_indicator(symbol: str, indicator: str, time_period: int = 14) -> pd.DataFrame:
     key = KEYS.get(indicator)
 
@@ -82,10 +78,10 @@ def fetch_indicator(symbol: str, indicator: str, time_period: int = 14) -> pd.Da
         resp.raise_for_status()
         data = resp.json()
     except Exception:
-        # Network/API error → fallback
+        # Network/API error -> fallback
         return _fallback_from_prices(symbol, indicator, time_period)
 
-    # Missing/empty payload → fallback
+    # Missing/empty payload -> fallback
     if not data or key not in data or not data[key]:
         return _fallback_from_prices(symbol, indicator, time_period)
 

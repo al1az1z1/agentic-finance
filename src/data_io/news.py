@@ -43,7 +43,6 @@ def fetch_news(symbol: str) -> pd.DataFrame:
     save_cache(cache_key, df.to_dict(orient="records"))
     return df
 
-# fifth approach
 
 
 

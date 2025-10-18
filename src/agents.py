@@ -167,66 +167,6 @@ Provide sentiment analysis and impact assessment."""
             timestamp=datetime.now().isoformat()
         )
 
-# #====== Forth approach ======
-# class MarketSignalsAgent(BaseAgent):
-#     """Performs technical analysis on market data"""
-
-#     def __init__(self, model: str = "gpt-4o-mini"):
-#         super().__init__("Market Signals Agent", model)
-#         self.system_prompt = """You are a technical analyst specializing in market signals and price patterns.
-# Analyze technical indicators and provide:
-# 1. Technical strength score (-1 to +1, where -1 is very bearish, +1 is very bullish)
-# 2. Key technical indicators assessment
-# 3. Support and resistance levels
-# 4. Trend analysis
-
-# Return response in JSON format with keys: technical_score, analysis, key_factors, confidence"""
-
-#     def process(self, data: Dict[str, Any]) -> AgentResponse:
-#         ticker = data.get('ticker', 'UNKNOWN')
-#         technicals = data.get('technicals', {})
-
-#         technical_summary = f"""
-# Ticker: {ticker}
-# Current Price: ${technicals.get('current_price', 'N/A')}
-# 50-day MA: ${technicals.get('ma_50', 'N/A')}
-# 200-day MA: ${technicals.get('ma_200', 'N/A')}
-# RSI: {technicals.get('rsi', 'N/A')}
-# MACD: {technicals.get('macd', 'N/A')}
-# Volume: {technicals.get('volume', 'N/A')} (Avg: {technicals.get('avg_volume', 'N/A')})
-# Support: ${technicals.get('support', 'N/A')}
-# Resistance: ${technicals.get('resistance', 'N/A')}
-# """
-
-#         user_message = f"""Analyze the following technical data for {ticker}:
-
-# {technical_summary}
-
-# Assess technical strength and price momentum."""
-
-#         raw = self.call_llm(self.system_prompt, user_message)
-#         js  = strip_code_fences(raw)
-
-#         try:
-#             result = json.loads(js)
-#             score = normalize_score(to_float(result.get('technical_score', 0), 0.0))
-#             analysis = result.get('analysis', raw)
-#             key_factors = result.get('key_factors', [])
-#             confidence = normalize_conf(result.get('confidence', 0.7))
-#         except json.JSONDecodeError:
-#             score = 0.0
-#             analysis = raw
-#             key_factors = ["Unable to parse structured response"]
-#             confidence = 0.6
-
-#         return AgentResponse(
-#             agent_name=self.agent_name,
-#             analysis=analysis,
-#             score=float(score),
-#             confidence=float(confidence),
-#             key_factors=key_factors,
-#             timestamp=datetime.now().isoformat()
-#         )
 
 class MarketSignalsAgent(BaseAgent):
     """Performs technical analysis on market data"""
@@ -298,10 +238,6 @@ Assess technical strength and price momentum. Provide only the JSON object descr
             key_factors=key_factors,
             timestamp=datetime.now().isoformat()
         )
-
-#===== Forth approach ======
-
-
 
 
 
