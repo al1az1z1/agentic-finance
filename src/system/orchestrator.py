@@ -26,6 +26,27 @@ from ..agents import (
 
 # from ..analysis.signals import normalize_technicals  # add this import
 
+import json
+
+def _as_text(x):
+    if x is None:
+        return ""
+    if isinstance(x, (dict, list)):
+        try:
+            return json.dumps(x, ensure_ascii=False, indent=2)
+        except Exception:
+            return str(x)
+    return str(x)
+
+def _as_list_of_text(x):
+    if isinstance(x, list):
+        return [_as_text(i) for i in x]
+    if x is None:
+        return []
+    # if a single str/dict was returned, wrap it
+    return [_as_text(x)]
+
+
 @dataclass
 class OrchestratorResult:
     plan: List[str]
@@ -130,16 +151,38 @@ def run_pipeline(symbol: str, start: str | None, end: str | None,
     }
     outputs.append(RiskAssessmentAgent().process(risk_payload))
 
-    # 6) synthesize + critique
-    synth = SynthesisAgent().process(outputs)
-    crit  = CritiqueAgent().process(synth)
+    # 6) synthesize + critique (gated second pass)
+    synth_v1 = SynthesisAgent().process(outputs)
+    crit     = CritiqueAgent().process(synth_v1)
 
-    # 7) memory
+    # Decide if we need a second pass.
+    # Rule: re-run if critique quality score < 0.90 OR if it mentions "data quality".
+    needs_rerun = (crit.score < 0.90) or ("data quality" in " ".join(crit.key_factors).lower())
+
+    synth_final = synth_v1
+    if needs_rerun:
+        # Turn critique into feedback for the optimizer pass
+        critique_feedback = AgentResponse(
+            agent_name="Critique Feedback",
+            analysis=_as_text(synth_v1.analysis) + "\n\n[CRITIQUE]\n" + _as_text(crit.analysis),
+            score=crit.score,
+            confidence=crit.confidence,
+            key_factors=_as_list_of_text(crit.key_factors),
+            timestamp=datetime.utcnow().isoformat()
+        )
+
+        synth_v2_inputs = outputs + [critique_feedback]
+        synth_v2 = SynthesisAgent().process(synth_v2_inputs)
+        synth_final = synth_v2
+
+    # 7) memory (store both passes where applicable)
     append_memory({
         "ticker": symbol,
         "lanes": lanes,
         "issues": crit.key_factors,
-        "final_confidence": synth.confidence,
+        "final_confidence_v1": synth_v1.confidence,
+        "final_confidence_v2": synth_final.confidence if needs_rerun else None,
+        "optimizer_triggered": bool(needs_rerun),
         "timestamp": datetime.utcnow().isoformat()
     })
 
@@ -149,4 +192,16 @@ def run_pipeline(symbol: str, start: str | None, end: str | None,
         "prices_tail": prices.tail(5)
     }
 
-    return OrchestratorResult(plan, evidence, outputs, synth, crit)
+    # Show the first synthesis alongside other agents for transparency
+
+    outputs.append(AgentResponse(
+        agent_name="Initial Synthesis",
+        analysis=_as_text(synth_v1.analysis),
+        score=float(synth_v1.score),
+        confidence=float(synth_v1.confidence),
+        key_factors=_as_list_of_text(synth_v1.key_factors),
+        timestamp=synth_v1.timestamp
+))
+
+    return OrchestratorResult(plan, evidence, outputs, synth_final, crit)
+
