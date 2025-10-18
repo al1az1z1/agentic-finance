@@ -169,6 +169,7 @@ def run_pipeline(symbol: str, start: str | None, end: str | None,
             confidence=crit.confidence,
             key_factors=_as_list_of_text(crit.key_factors),
             timestamp=datetime.utcnow().isoformat()
+            
         )
 
         synth_v2_inputs = outputs + [critique_feedback]
