@@ -354,10 +354,9 @@ Analyze technical indicators and provide:
 
 Return your answer strictly as JSON with these keys:
 - technical_score: float in [-1, 1]
-- analysis: 4–6 sentences of prose. Do NOT echo or reprint the input dictionary; write a human-readable explanation instead.
+- analysis: 4–6 sentences of prose that INCLUDE the exact input numbers you used (price, MAs, RSI, volume & avg). Do NOT echo the raw dict; write a human-readable explanation with those figures.
 - key_factors: list of 3–6 short bullet phrases (strings) capturing the drivers of the score
 - confidence: float in [0, 1]
-
 Do not include any other keys. Do not wrap the JSON in code fences."""
 
     def process(self, data: Dict[str, Any]) -> AgentResponse:
