@@ -15,12 +15,14 @@ from .analysis.text import (
     normalize_conf,
 )
 
-OPENAI_KEY = os.getenv("OPENAI_API_KEY")
-if OPENAI_KEY:
-    from openai import OpenAI
-    _client = OpenAI(api_key=OPENAI_KEY)
+api_key = os.environ.get("sk-proj-")
+
+if api_key:
+    print(f"API Key found: {api_key[:20]}...")
 else:
-    _client = None  # mock mode
+    print("API Key NOT found!")
+    print("Setting it now...")
+    os.environ["OPENAI_API_KEY"] = "sk-proj-" 
 
 @dataclass
 class AgentResponse:
@@ -32,7 +34,7 @@ class AgentResponse:
     timestamp: str
 
 class BaseAgent:
-    def __init__(self, agent_name: str, model: str = "gpt-4o-mini"):
+    def __init__(self, agent_name: str, model: str = "gpt-4o"): 
         self.agent_name = agent_name
         self.model = model
 
@@ -51,8 +53,8 @@ class BaseAgent:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}
                 ],
-                temperature=0.3,
-                max_tokens=800
+                temperature=0.5,    
+                max_tokens=1000     
             )
             return resp.choices[0].message.content
         except Exception as e:
@@ -62,18 +64,34 @@ class BaseAgent:
                 "key_factors": ["error"],
                 "confidence": 0.3
             })
-
 # -----------------------------
 # News
 # -----------------------------
-
 class NewsAnalysisAgent(BaseAgent):
-    """Analyzes financial news sentiment and impact"""
-
-    def __init__(self, model: str = "gpt-4o-mini"):
+    def __init__(self, model: str = "gpt-4o"):  
         super().__init__("News Analysis Agent", model)
-        self.system_prompt = """You are a financial news analyst specializing in sentiment analysis.
+        self.system_prompt = """You are a senior financial analyst with 15+ years of experience in equity research.
 
+Analyze the provided news articles with focus on:
+1. SENTIMENT: Quantify market sentiment from -1 (very negative) to +1 (very positive)
+2. MATERIALITY: How much will this impact stock price? (high/medium/low)
+3. CATALYSTS: Identify specific events that could move the stock
+4. RISKS: Note any red flags or concerns mentioned
+
+SCORING GUIDELINES:
++0.8 to +1.0: Major positive catalyst (earnings beat, breakthrough product, strategic win)
++0.4 to +0.7: Positive news (growth signals, analyst upgrades, market share gains)
+-0.3 to +0.3: Neutral or mixed signals
+-0.7 to -0.4: Negative news (missed targets, regulatory issues, competitive threats)
+-1.0 to -0.8: Major negative catalyst (fraud, bankruptcy risk, losing key customers)
+
+IMPORTANT: 
+- Use actual numbers from articles (revenue, EPS, growth rates)
+- Compare to analyst expectations when mentioned
+- Note if news is company-specific vs industry-wide
+- Higher confidence when multiple sources agree
+
+Return ONLY valid JSON: {"sentiment_score": float, "analysis": str, "key_factors": [str], "confidence": float}"""
 INSTRUCTIONS:
 1. Analyze news articles objectively
 2. Consider both positive and negative aspects
@@ -137,7 +155,7 @@ Provide sentiment analysis and impact assessment."""
 class MarketSignalsAgent(BaseAgent):
     """Performs technical analysis on market data"""
 
-    def __init__(self, model: str = "gpt-4o-mini"):
+    def __init__(self, model: str = "gpt-4o"):
         super().__init__("Market Signals Agent", model)
         self.system_prompt = """You are a technical analyst specializing in market signals and price patterns.
 
@@ -211,7 +229,7 @@ Assess technical strength and price momentum. Provide only the JSON object descr
 class RiskAssessmentAgent(BaseAgent):
     """Assesses investment risk and portfolio fit"""
 
-    def __init__(self, model: str = "gpt-4o-mini"):
+    def __init__(self, model: str = "gpt-4o"):
         super().__init__("Risk Assessment Agent", model)
         self.system_prompt = """You are a risk management analyst specializing in portfolio risk assessment.
 
@@ -292,7 +310,7 @@ Assess overall investment risk and portfolio implications."""
 class SynthesisAgent(BaseAgent):
     """Combines insights from all agents into final recommendation"""
 
-    def __init__(self, model: str = "gpt-4o-mini"):
+    def __init__(self, model: str = "gpt-4o"):
         super().__init__("Research Synthesis Agent", model)
         self.system_prompt = """You are a senior investment analyst who synthesizes multiple analyses into actionable recommendations.
 
