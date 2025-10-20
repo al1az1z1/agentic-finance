@@ -1,14 +1,6 @@
-# Second approach
-
 from __future__ import annotations
 import re
 import pandas as pd
-from datetime import datetime, timedelta
-from ..config.settings import SETTINGS
-
-# -----------------------------
-# Existing tagging / preprocessing
-# -----------------------------
 
 TAG_RULES = {
     "earnings": ["earnings", "eps", "guidance", "outlook", "quarter", "revenue"],
@@ -26,19 +18,18 @@ def preprocess_news(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.copy()
 
-    # Alpha Vantage format is like "20251017T200143"
-    # Parse with explicit format; keep timezone-aware for safety
+    # Alpha Vantage format is like "20251017T200143" — parse with explicit format; keep timezone-aware
     df["published_at"] = pd.to_datetime(
         df["published_at"], format="%Y%m%dT%H%M%S", errors="coerce", utc=True
     )
 
-    # Drop rows with no title/url; keep others (don’t drop NaT here — the date filter happens later)
-    df = df.dropna(subset=["title","url"]).drop_duplicates(subset=["url"])
+    # Drop rows with no title/url; keep others
+    df = df.dropna(subset=["title", "url"]).drop_duplicates(subset=["url"])
     df["summary"] = df["summary"].fillna("")
     return df
 
 def classify_tags(text: str) -> list[str]:
-    text_l = text.lower()
+    text_l = (text or "").lower()
     tags = [k for k, kws in TAG_RULES.items() if any(kw in text_l for kw in kws)]
     return tags or ["general"]
 
@@ -58,8 +49,6 @@ def add_tags_and_numbers(df: pd.DataFrame) -> pd.DataFrame:
 def recent_topk(df: pd.DataFrame, topk: int, days: int, required_tags: list[str] | None = None) -> pd.DataFrame:
     if df.empty:
         return df
-
-    # Make an aware UTC cutoff; df['published_at'] is already UTC-aware
     cutoff = pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=days)
     f = df[df["published_at"] >= cutoff]
 
@@ -73,7 +62,6 @@ def recent_topk(df: pd.DataFrame, topk: int, days: int, required_tags: list[str]
 # -----------------------------
 # NEW: shared agent utilities
 # -----------------------------
-
 import json
 
 def strip_code_fences(s: str) -> str:
@@ -87,8 +75,7 @@ def to_float(x, default: float = 0.0) -> float:
     try:
         if isinstance(x, str):
             xs = x.strip().lower()
-            # map common words to numeric anchors
-            if xs in ("high", "strong", "bullish", "overbought"): 
+            if xs in ("high", "strong", "bullish", "overbought"):
                 return 0.8
             if xs in ("medium", "moderate", "neutral"):
                 return 0.5
@@ -102,15 +89,6 @@ def clamp(x: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, x))
 
 def normalize_score(v: float) -> float:
-    """
-    Normalize arbitrary score ranges to [-1, 1].
-    Heuristics:
-      - If already in [-1,1], keep.
-      - If in [0,1], map to [-1,1] via (v-0.5)*2.
-      - If in (1,100], treat as percent.
-      - If in (1,10], treat as 0-10 and map.
-      - Else, clamp.
-    """
     try:
         v = float(v)
     except Exception:
@@ -128,13 +106,11 @@ def normalize_score(v: float) -> float:
     return clamp(v, -1.0, 1.0)
 
 def normalize_conf(v) -> float:
-    """Normalize any confidence-like value to [0,1]."""
     f = to_float(v, 0.7)
     if 1.0 < f <= 100.0:
         f = f / 100.0
     return clamp(f, 0.0, 1.0)
 
-# Optional: helpers to render structured dicts into strings (for external tools)
 def pretty_json_block(obj: dict, max_chars: int = 4000) -> str:
     """Return a fenced JSON markdown block, truncated for UI safety."""
     try:

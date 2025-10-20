@@ -21,3 +21,16 @@ def compute_rsi(prices: pd.DataFrame, window: int = 14) -> pd.Series:
     rs = avg_gain / (avg_loss + 1e-10)
     rsi = 100 - (100 / (1 + rs))
     return rsi
+
+def compute_max_drawdown(prices: pd.DataFrame) -> float:
+    """
+    Max drawdown in percent (negative number, e.g., -22.5 for -22.5%).
+    Assumes 'close' column exists.
+    """
+    if prices is None or prices.empty or "close" not in prices:
+        return float("nan")
+    series = prices["close"].astype(float)
+    roll_max = series.cummax()
+    drawdown = (series / roll_max) - 1.0
+    mdd = drawdown.min()
+    return float(round(mdd * 100.0, 3))  # percent

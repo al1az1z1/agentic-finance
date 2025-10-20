@@ -1,5 +1,3 @@
-# === Second approach
-
 from __future__ import annotations
 import os, json
 from dataclasses import dataclass
@@ -15,15 +13,37 @@ from .analysis.text import (
     normalize_conf,
 )
 
-api_key = os.environ.get("sk-proj-")
+# -----------------------------------------------------------------------------
+# OpenAI client (safe stub for local/dev)
+# -----------------------------------------------------------------------------
+# Use the standard env var name
+api_key = os.environ.get("OPENAI_API_KEY")
 
+# Optional: print a very short prefix to help you debug locally
 if api_key:
-    print(f"API Key found: {api_key[:20]}...")
+    print(f"OPENAI_API_KEY found: {api_key[:6]}***")
 else:
-    print("API Key NOT found!")
-    print("Setting it now...")
-    os.environ["OPENAI_API_KEY"] = "sk-proj-" 
+    print("OPENAI_API_KEY NOT found! (running in MOCK mode)")
+    # Don't set a fake key here; just run in mock.
 
+# Initialize client if possible; otherwise fall back to mock
+_client = None
+try:
+    # If you want to use the newer SDK:
+    # from openai import OpenAI
+    # _client = OpenAI()
+    #
+    # Or (legacy) openai.ChatCompletion API — but we'll stick to the new client interface:
+    from openai import OpenAI
+    if api_key:
+        _client = OpenAI()
+except Exception:
+    _client = None
+
+
+# -----------------------------------------------------------------------------
+# Shared response container
+# -----------------------------------------------------------------------------
 @dataclass
 class AgentResponse:
     agent_name: str
@@ -33,13 +53,18 @@ class AgentResponse:
     key_factors: List[str]
     timestamp: str
 
+
+# -----------------------------------------------------------------------------
+# BaseAgent
+# -----------------------------------------------------------------------------
 class BaseAgent:
-    def __init__(self, agent_name: str, model: str = "gpt-4o"): 
+    def __init__(self, agent_name: str, model: str = "gpt-4o"):
         self.agent_name = agent_name
         self.model = model
 
     def call_llm(self, system_prompt: str, user_message: str) -> str:
-        if _client is None:  # mock
+        # Mock path (no API key / no client)
+        if _client is None:
             return json.dumps({
                 "analysis": f"MOCK: {self.agent_name} processed.",
                 "score": 0.0,
@@ -53,8 +78,8 @@ class BaseAgent:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}
                 ],
-                temperature=0.5,    
-                max_tokens=1000     
+                temperature=0.5,
+                max_tokens=1000
             )
             return resp.choices[0].message.content
         except Exception as e:
@@ -64,12 +89,15 @@ class BaseAgent:
                 "key_factors": ["error"],
                 "confidence": 0.3
             })
-# -----------------------------
+
+
+# -----------------------------------------------------------------------------
 # News
-# -----------------------------
+# -----------------------------------------------------------------------------
 class NewsAnalysisAgent(BaseAgent):
-    def __init__(self, model: str = "gpt-4o"):  
+    def __init__(self, model: str = "gpt-4o"):
         super().__init__("News Analysis Agent", model)
+        # IMPORTANT: keep everything inside one triple-quoted string
         self.system_prompt = """You are a senior financial analyst with 15+ years of experience in equity research.
 
 Analyze the provided news articles with focus on:
@@ -91,7 +119,6 @@ IMPORTANT:
 - Note if news is company-specific vs industry-wide
 - Higher confidence when multiple sources agree
 
-Return ONLY valid JSON: {"sentiment_score": float, "analysis": str, "key_factors": [str], "confidence": float}"""
 INSTRUCTIONS:
 1. Analyze news articles objectively
 2. Consider both positive and negative aspects
@@ -122,10 +149,9 @@ Return ONLY valid JSON with keys: sentiment_score, analysis, key_factors, confid
 
 {news_summary}
 
-Provide sentiment analysis and impact assessment."""
-
+Provide sentiment analysis and impact assessment. Return only the JSON."""
         raw = self.call_llm(self.system_prompt, user_message)
-        js  = strip_code_fences(raw)
+        js = strip_code_fences(raw)
 
         try:
             result = json.loads(js)
@@ -148,10 +174,86 @@ Provide sentiment analysis and impact assessment."""
             timestamp=datetime.now().isoformat()
         )
 
-# -----------------------------
-# Technicals
-# -----------------------------
 
+# ------------------------------------------------------------------------------
+# Earnings  (COMPLETED)
+# ------------------------------------------------------------------------------
+class EarningsAnalysisAgent(BaseAgent):
+    """Analyzes earnings reports and patterns (EPS actual vs estimate, surprise history)."""
+
+    def __init__(self, model: str = "gpt-4o"):
+        super().__init__("Earnings Analysis Agent", model)
+        self.system_prompt = """You are a financial analyst specializing in earnings and fundamental analysis.
+
+INSTRUCTIONS:
+1. Analyze the earnings series objectively (EPS actual vs. estimates, surprises).
+2. Identify recent beats/misses, average surprise, and beat ratio.
+3. Provide a fundamental strength score from -1 (very weak) to +1 (very strong).
+4. List concise key factors that justify the score.
+5. Be specific with numbers when available.
+
+EXPECTED JSON SCHEMA:
+{
+  "fundamental_score": float,   // -1..+1
+  "analysis": string,
+  "key_factors": [string],
+  "confidence": float           // 0..1
+}
+
+SCORING HINTS:
+- Strong positive if repeated beats, positive average surprise, improving trend.
+- Negative if repeated misses, negative average surprise, deteriorating margins (if provided).
+- Neutral if mixed or sparse data.
+
+Return ONLY valid JSON with keys: fundamental_score, analysis, key_factors, confidence"""
+
+    def process(self, data: Dict[str, Any]) -> AgentResponse:
+        ticker = data.get("ticker", "UNKNOWN")
+        rows = data.get("earnings", []) or []
+
+        # Compact tabular summary to feed the model (top 8 most recent already supplied upstream)
+        def row_line(r: Dict[str, Any]) -> str:
+            return (
+                f"- {r.get('date','?')}: estimate={r.get('EPS Estimate','n/a')}, "
+                f"reported={r.get('Reported EPS','n/a')}, surprise%={r.get('Surprise(%)','n/a')}"
+            )
+        table = "\n".join(row_line(r) for r in rows[:12])
+
+        user_message = f"""Company: {ticker}
+
+Recent quarterly earnings (most recent first):
+{table}
+
+Analyze this history and return only the JSON object described in the schema."""
+        raw = self.call_llm(self.system_prompt, user_message)
+        js = strip_code_fences(raw)
+
+        try:
+            result = json.loads(js)
+            score = normalize_score(to_float(result.get("fundamental_score", 0.0), 0.0))
+            analysis = result.get("analysis", raw)
+            key_factors = result.get("key_factors", [])
+            confidence = normalize_conf(result.get("confidence", 0.7))
+        except json.JSONDecodeError:
+            score = 0.0
+            analysis = raw
+            key_factors = ["Unable to parse structured response"]
+            confidence = 0.6
+
+        return AgentResponse(
+            agent_name=self.agent_name,
+            analysis=analysis,
+            score=float(score),
+            confidence=float(confidence),
+            key_factors=key_factors,
+            timestamp=datetime.now().isoformat()
+        )
+
+
+
+# -----------------------------------------------------------------------------
+# Technicals
+# -----------------------------------------------------------------------------
 class MarketSignalsAgent(BaseAgent):
     """Performs technical analysis on market data"""
 
@@ -196,10 +298,9 @@ Resistance: ${technicals.get('resistance', 'N/A')}
 
 {technical_summary}
 
-Assess technical strength and price momentum. Provide only the JSON object described above."""
-
+Assess technical strength and price momentum. Return only the JSON described above."""
         raw = self.call_llm(self.system_prompt, user_message)
-        js  = strip_code_fences(raw)
+        js = strip_code_fences(raw)
 
         try:
             result = json.loads(js)
@@ -222,10 +323,9 @@ Assess technical strength and price momentum. Provide only the JSON object descr
             timestamp=datetime.now().isoformat()
         )
 
-# -----------------------------
-# Risk
-# -----------------------------
-
+# -----------------------------------------------------------------------------
+# Risk  (COMPLETED)
+# -----------------------------------------------------------------------------
 class RiskAssessmentAgent(BaseAgent):
     """Assesses investment risk and portfolio fit"""
 
@@ -234,48 +334,57 @@ class RiskAssessmentAgent(BaseAgent):
         self.system_prompt = """You are a risk management analyst specializing in portfolio risk assessment.
 
 INSTRUCTIONS:
-1. Analyze risk metrics objectively
-2. Provide risk level score from 0 (very low risk) to 1 (very high risk)
-3. Identify key risk factors
-4. Assess portfolio diversification implications
-5. Evaluate risk-adjusted returns
+1. Analyze risk metrics objectively.
+2. Provide a risk level score from 0 (very low risk) to 1 (very high risk).
+3. Identify key risk drivers (beta, volatility, VaR, Sharpe, max drawdown, concentration/correlation).
+4. Explain portfolio implications and any risk mitigants.
 
-EXAMPLE OUTPUT:
+EXPECTED JSON SCHEMA:
 {
-  "risk_score": 0.45,
-  "analysis": "Moderate risk profile with acceptable volatility and strong Sharpe ratio",
-  "key_factors": ["Beta of 1.15 indicates moderate volatility", "Strong Sharpe ratio", "Manageable drawdown"],
-  "confidence": 0.82
+  "risk_score": float,      // 0..1
+  "analysis": string,
+  "key_factors": [string],
+  "confidence": float       // 0..1
 }
+
+GUIDANCE:
+- Higher beta/volatility/drawdown/VaR => higher risk_score.
+- Higher Sharpe => lowers effective risk_score (risk-adjusted).
+- Lack of data => moderate confidence; be explicit.
 
 Return ONLY valid JSON with keys: risk_score, analysis, key_factors, confidence"""
 
     def process(self, data: Dict[str, Any]) -> AgentResponse:
         ticker = data.get('ticker', 'UNKNOWN')
-        risk_data = data.get('risk_metrics', {})
+        risk_data = data.get('risk_metrics', {}) or {}
 
+        # Build a compact, explicit summary. We pass both short-term and full stats if provided.
         risk_summary = f"""
 Ticker: {ticker}
 Beta: {risk_data.get('beta', 'N/A')}
 Volatility (30-day): {risk_data.get('volatility', 'N/A')}%
-Value at Risk (5%): ${risk_data.get('var_5', 'N/A')}
 Sharpe Ratio: {risk_data.get('sharpe_ratio', 'N/A')}
-Max Drawdown: {risk_data.get('max_drawdown', 'N/A')}%
+Max Drawdown (%): {risk_data.get('max_drawdown', 'N/A')}
+Value at Risk (5% daily return): {risk_data.get('var_5', 'N/A')}
 Sector Correlation: {risk_data.get('sector_correlation', 'N/A')}
 P/E Ratio: {risk_data.get('pe_ratio', 'N/A')}
+
+# Extended (may be None):
+Avg Daily Return: {risk_data.get('avg_daily_return', 'N/A')}
+Volatility (full window): {risk_data.get('volatility_full', 'N/A')}
 """
 
-        user_message = f"""Analyze the following risk metrics for {ticker}:
+        user_message = f"""Analyze the following risk metrics and return only the JSON per schema:
 
 {risk_summary}
 
-Assess overall investment risk and portfolio implications."""
-
+Give a 0..1 risk_score, analysis, key_factors (bullet-style phrases), and confidence."""
         raw = self.call_llm(self.system_prompt, user_message)
-        js  = strip_code_fences(raw)
+        js = strip_code_fences(raw)
 
         try:
             result = json.loads(js)
+
             # Keep 0..1 semantics but normalize/clamp
             risk01 = to_float(result.get('risk_score', 0.5), 0.5)
             if 1.0 < risk01 <= 100.0:
@@ -303,10 +412,10 @@ Assess overall investment risk and portfolio implications."""
             timestamp=datetime.now().isoformat()
         )
 
-# -----------------------------
-# Synthesis
-# -----------------------------
 
+# -----------------------------------------------------------------------------
+# Synthesis
+# -----------------------------------------------------------------------------
 class SynthesisAgent(BaseAgent):
     """Combines insights from all agents into final recommendation"""
 
@@ -346,10 +455,9 @@ Return ONLY valid JSON with keys: recommendation, confidence, analysis, key_poin
 
 {analyses_summary}
 
-Provide comprehensive investment recommendation with supporting reasoning."""
-
+Provide a comprehensive investment recommendation with supporting reasoning. Return only the JSON."""
         raw = self.call_llm(self.system_prompt, user_message)
-        js  = strip_code_fences(raw)
+        js = strip_code_fences(raw)
 
         try:
             result = json.loads(js)
@@ -381,10 +489,10 @@ Provide comprehensive investment recommendation with supporting reasoning."""
             timestamp=datetime.now().isoformat()
         )
 
-# -----------------------------
-# Critique
-# -----------------------------
 
+# -----------------------------------------------------------------------------
+# Critique
+# -----------------------------------------------------------------------------
 class CritiqueAgent(BaseAgent):
     """Reviews and validates analysis quality"""
 
@@ -417,10 +525,9 @@ Recommendation: {synthesis_response.analysis}
 Confidence: {synthesis_response.confidence}
 Key Factors: {', '.join(synthesis_response.key_factors)}
 
-Identify any issues, biases, or missing elements."""
-
+Identify any issues, biases, or missing elements. Return only the JSON."""
         raw = self.call_llm(self.system_prompt, user_message)
-        js  = strip_code_fences(raw)
+        js = strip_code_fences(raw)
 
         try:
             result = json.loads(js)

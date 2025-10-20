@@ -1,4 +1,3 @@
-# src/data_io/indicators.py
 from __future__ import annotations
 import requests
 import pandas as pd
