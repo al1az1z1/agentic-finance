@@ -133,7 +133,4 @@ Special thanks to our instructor for guidance
 This project is for academic and educational use only.  
 © 2025 — Team Agentic Finance, University of San Diego.
 
----
-
-##  Additional Resources
--  [Final Notebook (HTML)](https://github.com/al1az1z1/agentic-finance/blob/main/notebooks/AAI-520_Final_Team_project_Group_5.html)  
+ 
